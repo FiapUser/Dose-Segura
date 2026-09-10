@@ -1,0 +1,34 @@
+version: '3.8'
+
+networks:
+  dose-segura-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+
+services:
+  db-dose-segura:
+    image: mysql:8.0
+    container_name: db-dose-segura
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: dosesegura
+      MYSQL_USER: usr
+      MYSQL_PASSWORD: 123
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - dose-segura-network
+
+  app-dose-segura:
+    build: .
+    container_name: app-dose-segura
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db-dose-segura
+    networks:
+      - dose-segura-network
