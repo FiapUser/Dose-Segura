@@ -74,11 +74,17 @@ java -jar target/dose-segura.jar
 
 ### Contas criadas na carga inicial
 
-| Perfil       | E-mail                        | Senha            |
-|--------------|-------------------------------|------------------|
-| Master admin | `admin@dosesegura.com.br`     | `DoseSegura@2026`|
-| Cuidador     | `cuidador@exemplo.com`        | `Cuidador@2026`  |
-| Paciente     | `paciente@exemplo.com`        | `Paciente@2026`  |
+| Perfil         | E-mail                            | CNPJ                 | Senha             |
+|----------------|-----------------------------------|----------------------|-------------------|
+| Master admin   | `admin@dosesegura.com.br`         | —                    | `DoseSegura@2026` |
+| Instituição    | `parceira@dose-segura.com.br`     | `61.774.267/0001-00` | `Parceira@2026`   |
+| Cuidador (CPF) | `cuidador@exemplo.com`            | —                    | `Cuidador@2026`   |
+| Paciente (CPF) | `paciente@exemplo.com`            | —                    | `Paciente@2026`   |
+
+A conta de instituição é a dona dos registros do CNPJ `61.774.267/0001-00` na
+vitrine: é ela que cadastra/edita e envia as imagens do fornecedor Eurofarma, das
+farmácias da rede e dos medicamentos do portfólio. Troque com
+`DEMO_INSTITUICAO_EMAIL` / `DEMO_INSTITUICAO_SENHA` / `DEMO_INSTITUICAO_CNPJ`.
 
 A carga inicial também monta a vitrine (2 fornecedores, 3 farmácias, 10
 medicamentos, estoque e agenda do paciente de exemplo). Para desligar:
@@ -103,18 +109,34 @@ ilustração SVG gerada pela própria API
 (`/dosegura/api/ilustracoes/{tipo}/{nome}`), com a identidade de saúde/farmácia
 (cápsula, cruz, farmácia) em azul e verde.
 
-### Regra de upload (validada no backend)
+### Quem gerencia o quê (validado no backend)
 
-| Conta                          | Pode enviar                                                     |
-|--------------------------------|-----------------------------------------------------------------|
-| **Master admin**               | qualquer imagem da rede                                         |
-| **Fornecedor (CNPJ)**          | logo do fornecedor + fotos dos medicamentos que comercializa    |
-| **Farmácia (CNPJ)**            | foto da própria unidade                                         |
-| **Paciente / familiar / cuidador (CPF)** | somente a própria foto de perfil                       |
+| Conta | Lê a rede | Cria/edita/exclui registros | Envia imagens |
+|-------|-----------|----------------------------|---------------|
+| **Master admin** | sim | **qualquer** registro | **toda a rede** |
+| **Instituição (CNPJ)** | sim | apenas os registros do **próprio CNPJ** (ou em que é a responsável) | logo do fornecedor, fotos das farmácias e dos medicamentos da empresa |
+| **Paciente / familiar / cuidador (CPF)** | sim | **não** | apenas a própria foto de perfil |
 
-O fornecedor/cnpj que cria um fornecedor ou uma farmácia vira automaticamente o
-**responsável** (`FornecedorModel.responsavel` / `FarmaciaModel.responsavel`),
-e é essa conta que passa a poder enviar as imagens daquele registro.
+Duas âncoras de posse, combinadas:
+
+1. **responsável** — quem cadastrou o registro vira `responsavel` dele;
+2. **CNPJ** — a conta de instituição também administra o registro cujo CNPJ é
+   igual ao dela (comparado só pelos dígitos), e, nas farmácias e medicamentos,
+   os do CNPJ do fornecedor responsável.
+
+Consequências diretas:
+
+- paciente/cuidador **não** cria, edita nem exclui fornecedor, farmácia ou remédio
+  (`403` mesmo chamando a API direto, não só escondendo botões);
+- uma instituição não consegue cadastrar registro em nome de outra empresa
+  (`403` na criação com CNPJ divergente);
+- uma instituição não altera nem apaga registros de terceiros;
+- medicamento não pode ser transferido para o portfólio de outro fornecedor.
+
+Na interface, a tela **Gestão** mostra um aviso conforme o perfil: para conta de
+pessoa física explica que a administração da rede é do master admin e das
+instituições; para instituição, avisa que ela responde pelo próprio CNPJ. Registros
+de outras empresas abrem em modo somente leitura (sem botão de salvar, sem upload).
 
 ### Endpoints
 

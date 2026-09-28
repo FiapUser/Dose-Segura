@@ -16,6 +16,9 @@ import java.util.Map;
 @RestControllerAdvice
 public class TratadorDeExcecoes {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(TratadorDeExcecoes.class);
+
     @ExceptionHandler(AcessoNegadoException.class)
     public ResponseEntity<Map<String, String>> acessoNegado(AcessoNegadoException e) {
         return resposta(HttpStatus.FORBIDDEN, "ACESSO_NEGADO", e.getMessage());
@@ -35,6 +38,8 @@ public class TratadorDeExcecoes {
     // para não revelar qual dado já está cadastrado.
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> conflito(DataIntegrityViolationException e) {
+        // A resposta ao usuário é genérica; no servidor fica a causa real.
+        log.error("Violação de integridade: {}", e.getMostSpecificCause().getMessage());
         return resposta(HttpStatus.CONFLICT, "CONFLITO_DE_DADOS",
                 "Não foi possível concluir a operação: os dados informados conflitam com registros existentes.");
     }

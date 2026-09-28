@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Building2, Edit3, Eye, Package, Plus, RefreshCw, Save, Store, Trash2 } from 'lucide-react'
+import { BadgeCheck, Building2, Edit3, Eye, Package, Plus, RefreshCw, Save, ShieldAlert, Store, Trash2 } from 'lucide-react'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import { marketplaceApi, pharmacyApi } from '../services/api'
-import { errorMessage, formatCurrency, onlyFilled } from '../lib/format'
+import { errorMessage, formatCurrency, onlyFilled, somenteDigitos } from '../lib/format'
 import { urlFarmacia, urlFornecedor, urlMedicamento } from '../lib/images'
 import SmartImage from '../components/SmartImage'
 import ImageUploadField from '../components/ImageUploadField'
@@ -184,6 +184,18 @@ export default function ManagementPage() {
 
   const configuracao = configuracoes[aba]
   const permitidos = user?.tiposImagemPermitidos || ['PERFIL']
+  // Somente master admin e contas de instituição (CNPJ) administram a rede.
+  const podeGerenciar = user?.podeGerenciarRede ?? user?.masterAdmin ?? false
+  const meuCnpj = user?.cnpj || ''
+
+  /** Registro pertence a esta conta: responsável ou mesmo CNPJ. */
+  const podeEditarRegistro = (item) => {
+    if (!podeGerenciar) return false
+    if (user?.masterAdmin) return true
+    if (item?.responsavel?.id && item.responsavel.id === user.id) return true
+    const cnpjItem = item?.cnpj || item?.fornecedor?.cnpj || ''
+    return somenteDigitos(meuCnpj) !== '' && somenteDigitos(meuCnpj) === somenteDigitos(cnpjItem)
+  }
 
   const load = (abaAtiva = aba) => {
     setLoading(true)
@@ -205,13 +217,20 @@ export default function ManagementPage() {
   }, [aba])
 
   const openCreate = () => {
-    setForm(configuracao.initial)
+    // Instituição cadastra em nome do próprio CNPJ (exigência do backend).
+    const inicial = { ...configuracao.initial }
+    if (!user?.masterAdmin && meuCnpj && inicial.cnpj !== undefined) inicial.cnpj = meuCnpj
+    setForm(inicial)
     setEditing(null)
     setModalOpen(true)
   }
 
   const openRecord = async (item, mode) => {
     if (mode === 'edit') {
+      if (!podeEditarRegistro(item)) {
+        notify('Você só pode editar os registros da sua própria empresa (CNPJ).', 'error')
+        return
+      }
       setForm({ ...configuracao.initial, ...flattenEntity(item) })
       setEditing(item)
       setModalOpen(true)
@@ -266,20 +285,45 @@ export default function ManagementPage() {
   }
 
   const imagemConfig = IMAGEM[aba]
+  // Visualização de registro de outra empresa: sem edição, sem upload e sem salvar.
+  const somenteLeitura = Boolean(editing) && !podeEditarRegistro(editing)
 
   return (
     <div className="page-shell page-container management-page">
       <PageIntro
         eyebrow="Backoffice da rede"
         title="Gestão que sustenta o cuidado."
-        description="Cadastre fornecedores, farmácias e medicamentos e envie as imagens direto para o Cloudinary."
+        description={podeGerenciar
+          ? 'Cadastre fornecedores, farmácias e medicamentos e envie as imagens direto para o Cloudinary.'
+          : 'Consulte a rede. Para cadastrar ou editar registros, a conta precisa ser de instituição (CNPJ).'}
         action={(
           <div className="page-actions">
             <Button variant="ghost" onClick={() => load()} icon={RefreshCw}>Atualizar</Button>
-            <Button onClick={openCreate} icon={Plus}>Novo registro</Button>
+            {podeGerenciar && <Button onClick={openCreate} icon={Plus}>Novo registro</Button>}
           </div>
         )}
       />
+
+      {!podeGerenciar && (
+        <div className="notice notice--permission">
+          <ShieldAlert size={19} />
+          <span>
+            Sua conta é de pessoa física: dá para consultar a rede e comprar no marketplace, mas criar,
+            editar ou excluir fornecedores, farmácias e medicamentos é restrito ao master admin e às
+            instituições (contas com CNPJ).
+          </span>
+        </div>
+      )}
+
+      {podeGerenciar && !user?.masterAdmin && (
+        <div className="notice notice--permission notice--permission--ok">
+          <BadgeCheck size={19} />
+          <span>
+            Você gerencia os registros da sua empresa (CNPJ {meuCnpj || 'não informado'}) e envia as imagens deles.
+            Registros de outras empresas ficam somente para leitura.
+          </span>
+        </div>
+      )}
 
       <div className="management-tabs" role="tablist">
         {abas.map(({ id, label, icon: Icon }) => (
@@ -322,8 +366,12 @@ export default function ManagementPage() {
                 <StatusBadge tone="yellow">{display.badge}</StatusBadge>
                 <div className="management-item__actions">
                   <button className="icon-button" type="button" onClick={() => openRecord(item, 'view')} disabled={busyId === item.id} aria-label="Ver detalhes"><Eye size={18} /></button>
-                  <button className="icon-button" type="button" onClick={() => openRecord(item, 'edit')} aria-label="Editar registro"><Edit3 size={18} /></button>
-                  <button className="icon-button icon-button--dark" type="button" onClick={() => setDeleteTarget(item)} aria-label="Excluir registro"><Trash2 size={18} /></button>
+                  {podeEditarRegistro(item) && (
+                    <>
+                      <button className="icon-button" type="button" onClick={() => openRecord(item, 'edit')} aria-label="Editar registro"><Edit3 size={18} /></button>
+                      <button className="icon-button icon-button--dark" type="button" onClick={() => setDeleteTarget(item)} aria-label="Excluir registro"><Trash2 size={18} /></button>
+                    </>
+                  )}
                 </div>
               </article>
             )
@@ -346,6 +394,7 @@ export default function ManagementPage() {
         size="lg"
       >
         <form onSubmit={save}>
+          <fieldset className="form-fieldset" disabled={somenteLeitura}>
           <div className="form-grid">
             {configuracao.fields.map((field) => (
               <Field
@@ -426,9 +475,18 @@ export default function ManagementPage() {
               />
             </div>
           </div>
+          </fieldset>
+          {somenteLeitura && (
+            <p className="upload-field__blocked">
+              <ShieldAlert size={15} /> Registro de outra empresa: você pode consultar, mas não editar
+              nem enviar imagens.
+            </p>
+          )}
           <div className="form-actions">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-            <Button type="submit" loading={saving} icon={Save}>{editing ? 'Salvar alterações' : 'Criar registro'}</Button>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>{somenteLeitura ? 'Fechar' : 'Cancelar'}</Button>
+            {!somenteLeitura && (
+              <Button type="submit" loading={saving} icon={Save}>{editing ? 'Salvar alterações' : 'Criar registro'}</Button>
+            )}
           </div>
         </form>
       </Modal>

@@ -11,11 +11,25 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
 import java.util.Map;
+import java.util.Set;
 
+/**
+ * Autorização por rota, executada antes dos controllers.
+ *
+ * <p>Rede de fornecedores, farmácias e medicamentos: leitura liberada para
+ * qualquer conta autenticada; criar, editar, excluir e enviar imagens exige
+ * master admin ou a instituição responsável pelo registro (mesmo CNPJ).
+ * Contas de pessoa física (CPF) não administram a rede.</p>
+ *
+ * <p>A conferência do CNPJ do corpo da requisição acontece nos services, que já
+ * recebem a entidade completa (aqui o corpo ainda não foi lido).</p>
+ */
 @Component
 public class AutorizacaoInterceptor implements HandlerInterceptor {
 
     private static final String BASE = "/dosegura/api";
+
+    private static final Set<String> METODOS_DE_ESCRITA = Set.of("POST", "PUT", "PATCH", "DELETE");
 
     @Autowired
     private AutorizacaoService autorizacao;
@@ -50,9 +64,14 @@ public class AutorizacaoInterceptor implements HandlerInterceptor {
 
         autorizacao.usuarioAtual();
 
-        Map<String, String> variaveis = (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+        Map<String, String> variaveis = (Map<String, String>) request.getAttribute(
+                HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
         if (variaveis == null) {
             variaveis = Map.of();
+        }
+
+        if (padrao.startsWith("/marketplace") || padrao.startsWith("/farmacias")) {
+            return autorizarRede(padrao, metodo, variaveis);
         }
 
         if (padrao.equals("/paciente/{id}")) {
@@ -78,10 +97,52 @@ public class AutorizacaoInterceptor implements HandlerInterceptor {
             autorizacao.exigirAcessoAoPaciente(id(variaveis, "pacienteId"));
         }
 
-        if (padrao.startsWith("/farmacias")) {
+        return true;
+    }
+
+    /**
+     * Fornecedores, farmácias e medicamentos.
+     *
+     * <ul>
+     *   <li>GET: leitura liberada (a vitrine é pública para contas autenticadas);</li>
+     *   <li>POST: exige perfil de rede — master admin ou instituição (CNPJ). O CNPJ
+     *       informado no corpo é conferido no service;</li>
+     *   <li>PUT/PATCH/DELETE: exige que o registro pertença à instituição
+     *       (responsável ou mesmo CNPJ) ou ao master admin.</li>
+     * </ul>
+     */
+    private boolean autorizarRede(String padrao, String metodo, Map<String, String> variaveis) {
+        if (!METODOS_DE_ESCRITA.contains(metodo)) {
             return true;
         }
 
+        boolean fornecedor = padrao.startsWith("/marketplace/fornecedor");
+        boolean medicamento = padrao.startsWith("/marketplace/medicamento");
+        boolean farmacia = padrao.startsWith("/farmacias");
+
+        if (metodo.equals("POST")) {
+            if (variaveis.containsKey("id")) {
+                // POST em item existente: trata como alteração do registro.
+                return exigirGestaoDeRegistro(padrao, id(variaveis, "id"), fornecedor, farmacia);
+            }
+            // Criação: perfil de rede (CNPJ do corpo validado no service).
+            autorizacao.exigirGestaoDaRede();
+            return true;
+        }
+
+        return exigirGestaoDeRegistro(padrao, id(variaveis, "id"), fornecedor, farmacia);
+    }
+
+    private boolean exigirGestaoDeRegistro(String padrao, Long id, boolean fornecedor, boolean farmacia) {
+        if (padrao.startsWith("/marketplace/medicamento")) {
+            autorizacao.exigirGestaoDeMedicamento(id);
+        } else if (fornecedor) {
+            autorizacao.exigirGestaoDeFornecedor(id);
+        } else if (farmacia) {
+            autorizacao.exigirGestaoDeFarmacia(id);
+        } else {
+            autorizacao.exigirGestaoDaRede();
+        }
         return true;
     }
 

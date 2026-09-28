@@ -52,6 +52,10 @@ public class DadosIniciais implements ApplicationRunner {
     private final String pacienteSenha;
     private final String cuidadorEmail;
     private final String cuidadorSenha;
+    private final String instituicaoEmail;
+    private final String instituicaoSenha;
+    private final String instituicaoNome;
+    private final String instituicaoCnpj;
 
     public DadosIniciais(
             Repo pacienteRepo,
@@ -68,7 +72,11 @@ public class DadosIniciais implements ApplicationRunner {
             @Value("${dosegura.seed.demo-paciente.email}") String pacienteEmail,
             @Value("${dosegura.seed.demo-paciente.senha}") String pacienteSenha,
             @Value("${dosegura.seed.demo-cuidador.email}") String cuidadorEmail,
-            @Value("${dosegura.seed.demo-cuidador.senha}") String cuidadorSenha) {
+            @Value("${dosegura.seed.demo-cuidador.senha}") String cuidadorSenha,
+            @Value("${dosegura.seed.demo-instituicao.email}") String instituicaoEmail,
+            @Value("${dosegura.seed.demo-instituicao.senha}") String instituicaoSenha,
+            @Value("${dosegura.seed.demo-instituicao.nome}") String instituicaoNome,
+            @Value("${dosegura.seed.demo-instituicao.cnpj}") String instituicaoCnpj) {
         this.habilitado = habilitado;
         this.pacienteRepo = pacienteRepo;
         this.fornecedorRepo = fornecedorRepo;
@@ -84,6 +92,10 @@ public class DadosIniciais implements ApplicationRunner {
         this.pacienteSenha = pacienteSenha;
         this.cuidadorEmail = cuidadorEmail;
         this.cuidadorSenha = cuidadorSenha;
+        this.instituicaoEmail = instituicaoEmail;
+        this.instituicaoSenha = instituicaoSenha;
+        this.instituicaoNome = instituicaoNome;
+        this.instituicaoCnpj = instituicaoCnpj;
     }
 
     @Override
@@ -96,7 +108,8 @@ public class DadosIniciais implements ApplicationRunner {
         try {
             PacienteModel masterAdmin = garantirContas();
             if (fornecedorRepo.count() == 0) {
-                garantirMarketplace(masterAdmin);
+                PacienteModel instituicao = pacienteRepo.findByEmail(instituicaoEmail).orElse(masterAdmin);
+                garantirMarketplace(instituicao, masterAdmin);
                 log.info("Vitrine do marketplace criada.");
             }
             if (pacienteRepo.findByEmail(pacienteEmail).isPresent()) {
@@ -122,6 +135,16 @@ public class DadosIniciais implements ApplicationRunner {
         pacienteRepo.findByEmail(cuidadorEmail)
                 .orElseGet(() -> conta("Marta Ribeiro Cuidadora", cuidadorEmail, cuidadorSenha,
                         PerfilConta.PESSOA_FISICA.name(), false, null));
+
+        // Conta de instituicao com o CNPJ do fornecedor da vitrine: e ela que pode
+        // criar/editar os registros da empresa e enviar as imagens no Cloudinary.
+        pacienteRepo.findByEmail(instituicaoEmail).orElseGet(() -> {
+            PacienteModel instituicao = conta(instituicaoNome, instituicaoEmail, instituicaoSenha,
+                    PerfilConta.INSTITUICAO.name(), false, null);
+            instituicao.setCnpj(instituicaoCnpj);
+            instituicao.setObservacoesMedicas("Parceira da rede Dose Segura.");
+            return pacienteRepo.save(instituicao);
+        });
 
         pacienteRepo.findByEmail(pacienteEmail).orElseGet(() -> {
             PacienteModel paciente = conta("Joao dos Santos", pacienteEmail, pacienteSenha,
@@ -149,22 +172,27 @@ public class DadosIniciais implements ApplicationRunner {
         return pacienteRepo.save(conta);
     }
 
-    private void garantirMarketplace(PacienteModel responsavel) {
+    /**
+     * Cada fornecedor/farmácia tem a conta responsável que o administra: a instituição parceira
+     * nos registros do próprio CNPJ e o master admin nos demais. É essa posse que habilita
+     * o envio das imagens no Cloudinary.
+     */
+    private void garantirMarketplace(PacienteModel instituicao, PacienteModel admin) {
         FornecedorModel eurofarma = fornecedor("Eurofarma Brasil", "61.774.267/0001-00",
                 "Av. Fagundes Filho, 620 - São Paulo/SP", "(11) 4002-8922", 4.9,
                 "Distribuidora parceira do Dose Segura, responsável por grande parte do portfólio de medicamentos crônicos.",
-                responsavel);
+                instituicao);
         FornecedorModel servimed = fornecedor("Servimed Distribuidora", "04.392.160/0001-09",
                 "Rua das Acácias, 1450 - Barueri/SP", "(11) 3030-5050", 4.6,
                 "Distribuidora regional com foco em genéricos e medicamentos de uso contínuo.",
-                responsavel);
+                admin);
 
         farmacia("Dose Segura Vila Mariana", "12.345.678/0001-90", "Rua Domingos de Morais, 1284 - São Paulo/SP",
-                "(11) 3888-1020", 0.0, 90, eurofarma, responsavel);
+                "(11) 3888-1020", 0.0, 90, eurofarma, instituicao);
         farmacia("Dose Segura Pinheiros", "12.345.678/0002-71", "Rua dos Pinheiros, 875 - São Paulo/SP",
-                "(11) 3888-2030", 6.90, 120, eurofarma, responsavel);
+                "(11) 3888-2030", 6.90, 120, eurofarma, instituicao);
         farmacia("Servimed Saúde Center", "98.765.432/0001-03", "Av. Eng. Luís Carlos Berrini, 1500 - Barueri/SP",
-                "(11) 3030-6060", 0.0, 60, servimed, responsavel);
+                "(11) 3030-6060", 0.0, 60, servimed, admin);
 
         medicamento("Losartana Potássica", "50mg", "Eurofarma", 18.90, 24.90, 25, 480, 900,
                 "Anti-hipertensivo (ARA II). Uso contínuo.", "Losartana", "Cardiovascular", eurofarma);

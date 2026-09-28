@@ -41,8 +41,21 @@ public class FarmaciaService {
         if (farmacia.getFornecedor() == null || farmacia.getFornecedor().getId() == null) {
             throw new DadosInvalidosException("Toda farmácia deve estar vinculada a um fornecedor.");
         }
+        // Perfil de rede: paciente/cuidador não cadastram farmácias.
+        autorizacao.exigirGestaoDaRede();
+        // A unidade só é criada por quem responde pelo fornecedor ou, quando é a
+        // própria instituição cadastrando a sua loja, pelo CNPJ da conta.
+        if (!autorizacao.usuarioAtual().isMasterAdminConta()
+                && !autorizacao.podeGerenciarFornecedor(farmacia.getFornecedor().getId())) {
+            autorizacao.exigirCriacaoNaRede(farmacia.getCnpj());
+        }
+
         FornecedorModel fornecedor = fornecedorRepo.findById(farmacia.getFornecedor().getId())
-                .orElseThrow(() -> new RuntimeException("Fornecedor pai não encontrado."));
+                .orElseThrow(() -> new DadosInvalidosException("Fornecedor pai não encontrado."));
+        if (farmacia.getNomeUnidade() == null || farmacia.getNomeUnidade().isBlank()
+                || farmacia.getCnpj() == null || farmacia.getCnpj().isBlank()) {
+            throw new DadosInvalidosException("Informe o nome da unidade e o CNPJ da farmácia.");
+        }
         farmacia.setFornecedor(fornecedor);
         // A conta logada passa a responder pela unidade e pode enviar a foto.
         if (farmacia.getResponsavel() == null || farmacia.getResponsavel().getId() == null) {

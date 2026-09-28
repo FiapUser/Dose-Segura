@@ -35,11 +35,16 @@ public class MarketplaceService {
     /**
      * Novo fornecedor: a conta logada (CNPJ) passa a ser a responsável, e por isso
      * passa a poder enviar o logo e as fotos dos medicamentos para o Cloudinary.
+     * Uma instituição só cadastra fornecedor com o próprio CNPJ.
      */
     public FornecedorModel saveFornecedor(FornecedorModel fornecedor) {
         if (fornecedor.getId() != null) {
-            throw new DadosInvalidosException("Novo fornecedor não deve informed id.");
+            throw new DadosInvalidosException("Novo fornecedor não deve informar id.");
         }
+        if (isVazio(fornecedor.getNomeFornecedor()) || isVazio(fornecedor.getCnpj())) {
+            throw new DadosInvalidosException("Informe o nome e o CNPJ do fornecedor.");
+        }
+        autorizacao.exigirCriacaoNaRede(fornecedor.getCnpj());
         fornecedor.setResponsavel(usuarioResponsavel());
         return fornecedorRepo.save(fornecedor);
     }
@@ -61,12 +66,45 @@ public class MarketplaceService {
         }).orElseThrow(() -> new RuntimeException("Fornecedor não encontrado"));
     }
 
+    /** Só quem responde pelo fornecedor cadastra medicamentos no portfólio dele. */
     public MedicamentoModel saveMedicamento(MedicamentoModel medicamento) {
+        if (medicamento.getFornecedor() == null || medicamento.getFornecedor().getId() == null) {
+            throw new DadosInvalidosException("Todo medicamento deve estar vinculado a um fornecedor.");
+        }
         FornecedorModel fornecedorCompleto = fornecedorRepo.findById(medicamento.getFornecedor().getId())
-                .orElseThrow(() -> new RuntimeException("Fornecedor não encontrado"));
+                .orElseThrow(() -> new DadosInvalidosException("Fornecedor não encontrado"));
+        autorizacao.exigirGestaoDeFornecedor(fornecedorCompleto.getId());
         medicamento.setFornecedor(fornecedorCompleto);
+        prepararObrigatorios(medicamento);
         calcularPrecoComDescontoCondicional(medicamento);
         return medicamentoRepo.save(medicamento);
+    }
+
+    /**
+     * Campos obrigatórios do medicamento. O desconto e a seleção de desconto são
+     * opcionais na interface: quando não chegam, assumem o padrão (0 / false)
+     * para não violar as colunas NOT NULL do banco.
+     */
+    private void prepararObrigatorios(MedicamentoModel medicamento) {
+        if (isVazio(medicamento.getNome())) {
+            throw new DadosInvalidosException("Informe o nome do medicamento.");
+        }
+        if (medicamento.getPrecoOriginal() == null) {
+            throw new DadosInvalidosException("Informe o preço original do medicamento.");
+        }
+        if (medicamento.getEstoqueDisponivel() == null || medicamento.getEstoqueFabricante() == null) {
+            throw new DadosInvalidosException("Informe o estoque disponível e o estoque do fabricante.");
+        }
+        if (medicamento.getDescontoPorcentagem() == null) {
+            medicamento.setDescontoPorcentagem(0);
+        }
+        if (medicamento.getDescontoSelecionado() == null) {
+            medicamento.setDescontoSelecionado(false);
+        }
+    }
+
+    private static boolean isVazio(String valor) {
+        return valor == null || valor.isBlank();
     }
 
     public MedicamentoModel updateMedicamento(Long id, MedicamentoModel details) {
@@ -87,9 +125,11 @@ public class MarketplaceService {
             medicamento.setDescontoPorcentagem(details.getDescontoPorcentagem());
             medicamento.setDescontoSelecionado(details.getDescontoSelecionado());
             calcularPrecoComDescontoCondicional(medicamento);
-            if (details.getFornecedor() != null) {
+            if (details.getFornecedor() != null && details.getFornecedor().getId() != null) {
                 FornecedorModel f = fornecedorRepo.findById(details.getFornecedor().getId())
-                        .orElseThrow(() -> new RuntimeException("Fornecedor não encontrado"));
+                        .orElseThrow(() -> new DadosInvalidosException("Fornecedor não encontrado"));
+                // Nao e possivel transferir o medicamento para o portfolio de outra empresa.
+                autorizacao.exigirGestaoDeFornecedor(f.getId());
                 medicamento.setFornecedor(f);
             }
             return medicamentoRepo.save(medicamento);

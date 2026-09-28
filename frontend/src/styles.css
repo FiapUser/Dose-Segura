@@ -1145,6 +1145,38 @@ ul, ol {
   border: 1px solid #fecdca;
 }
 
+.notice--permission {
+  background: var(--amber-100);
+  color: #93370d;
+  border: 1px solid #fedf89;
+  align-items: flex-start;
+}
+
+.notice--permission svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.notice--permission--ok {
+  background: var(--blue-50);
+  color: var(--blue-800);
+  border-color: var(--blue-100);
+}
+
+.form-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.form-fieldset:disabled .input,
+.form-fieldset:disabled .select,
+.form-fieldset:disabled .textarea {
+  background: var(--surface-soft);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .notice button {
   color: inherit;
   text-decoration: underline;

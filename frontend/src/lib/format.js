@@ -42,3 +42,8 @@ export function onlyFilled(values) {
 export function errorMessage(error) {
   return error?.message || 'Não foi possível concluir a ação.'
 }
+
+/** Só os dígitos: "61.774.267/0001-00" vira "61774267000100". */
+export function somenteDigitos(valor) {
+  return (valor || '').replace(/\D/g, '')
+}

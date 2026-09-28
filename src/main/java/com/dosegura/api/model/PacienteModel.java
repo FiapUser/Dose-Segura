@@ -112,12 +112,18 @@ public class PacienteModel {
      */
     @JsonProperty("tiposImagemPermitidos")
     public java.util.List<String> getTiposImagemPermitidos() {
-        if (isMasterAdminConta()) {
-            return java.util.List.of("PERFIL", "FORNECEDOR", "FARMACIA", "MEDICAMENTO");
-        }
-        if (isPessoaJuridica()) {
+        if (isMasterAdminConta() || isPessoaJuridica()) {
             return java.util.List.of("PERFIL", "FORNECEDOR", "FARMACIA", "MEDICAMENTO");
         }
         return java.util.List.of("PERFIL");
+    }
+
+    /**
+     * Indica se a conta pode criar, editar e excluir registros da rede
+     * (fornecedores, farmácias, medicamentos). Só master admin e instituição.
+     */
+    @JsonProperty("podeGerenciarRede")
+    public boolean isPodeGerenciarRede() {
+        return isMasterAdminConta() || isPessoaJuridica();
     }
 }
