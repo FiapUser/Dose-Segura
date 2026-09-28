@@ -4,6 +4,13 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Frontend ###
+node_modules/
+frontend/dist/
+src/main/resources/static/
+.env
+*.local
+
 ### STS ###
 .apt_generated
 .classpath
@@ -24,10 +31,14 @@ target/
 /nbbuild/
 /dist/
 /nbdist/
-/.nb-gradle/
+/nb-gradle/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
 ### VS Code ###
 .vscode/
+
+### Sistema ###
+.DS_Store
+Thumbs.db

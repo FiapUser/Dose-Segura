@@ -1,3 +1,0 @@
-FROM openjdk:22-jdk
-
-ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,0 +1,62 @@
+# =============================================================================
+# DOSE SEGURA - stack local (aplicacao Java unica + MySQL)
+# Sobe a interface e a API em http://localhost:8080
+# =============================================================================
+
+services:
+  db-dose-segura:
+    image: mysql:8.4
+    container_name: dose-segura-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-dosesegura}
+      MYSQL_USER: ${DB_USER:-usr}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-123}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${DB_PORT_EXTERNAL:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  app-dose-segura:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dose-segura:1.0.0
+    container_name: dose-segura-app
+    restart: unless-stopped
+    depends_on:
+      db-dose-segura:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      DB_HOST: db-dose-segura
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-dosesegura}
+      DB_USER: ${DB_USER:-usr}
+      DB_PASSWORD: ${DB_PASSWORD:-123}
+      DB_SSL: "false"
+      # --- Cloudinary (imagens da rede) ---
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-dose-segura}
+      # --- Seguranca ---
+      JWT_SECRET: ${JWT_SECRET:-}
+      CORS_ORIGENS: ${CORS_ORIGENS:-http://localhost:5173,http://localhost:4173}
+      # --- Carga inicial ---
+      DOSEGURA_SEED_ENABLED: ${DOSEGURA_SEED_ENABLED:-true}
+      MASTER_ADMIN_EMAIL: ${MASTER_ADMIN_EMAIL:-admin@dosesegura.com.br}
+      MASTER_ADMIN_SENHA: ${MASTER_ADMIN_SENHA:-DoseSegura@2026}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+volumes:
+  mysql_data:

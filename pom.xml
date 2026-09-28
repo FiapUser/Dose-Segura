@@ -9,11 +9,11 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.dosegura</groupId>
-	<artifactId>api</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
-	<url/>
+	<artifactId>dose-segura</artifactId>
+	<version>1.0.0</version>
+	<name>Dose Segura</name>
+	<description>Aplicacao unica (front + back) do Dose Segura, em parceria com a Eurofarma.</description>
+	<url>https://dose-segura.onrender.com</url>
 	<licenses>
 		<license/>
 	</licenses>
@@ -28,6 +28,10 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<cloudinary.version>2.4.0</cloudinary.version>
+		<!-- Define ${env.FRONTEND_DIR} via -Dfrontend.dir na build (padrao: frontend).
+		     O front e compilado para src/main/resources/static e servido pelo proprio Spring. -->
+		<frontend.dir>${project.basedir}/frontend</frontend.dir>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -74,9 +78,45 @@
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>0.11.5</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.11.5</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>0.11.5</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Cloudinary: upload e gerenciamento das imagens da rede (medicamentos,
+		     farmácias, fornecedores e fotos de perfil) -->
+		<dependency>
+			<groupId>com.cloudinary</groupId>
+			<artifactId>cloudinary-core</artifactId>
+			<version>${cloudinary.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.cloudinary</groupId>
+			<artifactId>cloudinary-http5</artifactId>
+			<version>${cloudinary.version}</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
+		<finalName>dose-segura</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
@@ -120,5 +160,92 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<!--
+			Unifica front e back em um unico artefato Java.
+			O front (React/Vite) e compilado para src/main/resources/static e servido
+			pelo proprio Spring Boot. Desative com -P '!frontend' ou -Dskip.frontend=true.
+		-->
+		<profile>
+			<id>frontend</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+				<property>
+					<name>!skip.frontend</name>
+				</property>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.eirslett</groupId>
+						<artifactId>frontend-maven-plugin</artifactId>
+						<version>1.15.1</version>
+						<configuration>
+							<workingDirectory>${frontend.dir}</workingDirectory>
+							<installDirectory>${project.build.directory}</installDirectory>
+						</configuration>
+						<executions>
+							<execution>
+								<id>install-node-and-npm</id>
+								<goals>
+									<goal>install-node-and-npm</goal>
+								</goals>
+								<configuration>
+									<nodeVersion>v20.20.0</nodeVersion>
+									<npmVersion>10.8.2</npmVersion>
+								</configuration>
+							</execution>
+							<execution>
+								<id>npm-install</id>
+								<goals>
+									<goal>npm</goal>
+								</goals>
+								<configuration>
+									<arguments>install --no-audit --no-fund</arguments>
+								</configuration>
+							</execution>
+							<execution>
+								<id>npm-build</id>
+								<goals>
+									<goal>npm</goal>
+								</goals>
+								<!-- antes de process-resources: o build do front escreve em
+								     src/main/resources/static e precisa entrar no jar. -->
+								<phase>generate-resources</phase>
+								<configuration>
+									<arguments>run build</arguments>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-clean-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>limpar-front</id>
+								<phase>clean</phase>
+								<goals>
+									<goal>clean</goal>
+								</goals>
+								<configuration>
+									<filesets>
+										<fileset>
+											<directory>${frontend.dir}/dist</directory>
+											<includes>
+												<include>**</include>
+											</includes>
+											<followSymlinks>false</followSymlinks>
+										</fileset>
+									</filesets>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>
