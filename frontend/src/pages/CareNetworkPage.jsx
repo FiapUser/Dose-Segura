@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link2, LogOut, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Unlink, Users, X } from 'lucide-react'
+import { Clock3, LogOut, RefreshCw, Save, Send, Trash2, Unlink, UserPlus, Users } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useRouter } from '../context/RouterContext'
+import { Link, useRouter } from '../context/RouterContext'
 import { useToast } from '../context/ToastContext'
-import { authApi } from '../services/api'
+import { authApi, vinculosApi } from '../services/api'
 import { errorMessage } from '../lib/format'
 import { urlPerfil } from '../lib/images'
 import SmartImage from '../components/SmartImage'
@@ -33,9 +33,10 @@ export default function CareNetworkPage() {
   const [profile, setProfile] = useState(null)
   const [profileForm, setProfileForm] = useState(() => profileToForm(user))
   const [dependents, setDependents] = useState([])
-  const [searchEmail, setSearchEmail] = useState('')
-  const [searchResult, setSearchResult] = useState(null)
-  const [dependentCredentials, setDependentCredentials] = useState({ email: '', senha: '' })
+  const [linkForm, setLinkForm] = useState({ email: '', tipo: 'CUIDADO', mensagem: '' })
+  const [enviados, setEnviados] = useState([])
+  const [recebidos, setRecebidos] = useState([])
+  const [linkError, setLinkError] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -45,13 +46,20 @@ export default function CareNetworkPage() {
     if (!user?.id) return
     setLoading(true)
     setError('')
-    Promise.allSettled([authApi.obter(user.id), authApi.listarDependentes(user.id)])
-      .then(([profileResult, dependentResult]) => {
+    Promise.allSettled([
+      authApi.obter(user.id),
+      authApi.listarDependentes(user.id),
+      vinculosApi.enviados(),
+      vinculosApi.recebidos(),
+    ])
+      .then(([profileResult, dependentResult, enviadosResult, recebidosResult]) => {
         if (profileResult.status === 'fulfilled') {
           setProfile(profileResult.value)
           setProfileForm(profileToForm(profileResult.value))
         } else setError(errorMessage(profileResult.reason))
-        if (dependentResult.status === 'fulfilled' && Array.isArray(dependentResult.value)) setDependents(dependentResult.value)
+        if (dependentResult.status === 'fulfilled') setDependents(Array.isArray(dependentResult.value) ? dependentResult.value : [])
+        if (enviadosResult.status === 'fulfilled') setEnviados(Array.isArray(enviadosResult.value) ? enviadosResult.value : [])
+        if (recebidosResult.status === 'fulfilled') setRecebidos(Array.isArray(recebidosResult.value) ? recebidosResult.value : [])
       })
       .finally(() => setLoading(false))
   }
@@ -80,54 +88,35 @@ export default function CareNetworkPage() {
     }
   }
 
-  const searchCaregiver = async (event) => {
+  /** Envia o pedido de vinculo. Quem aceita e a outra conta, na area de notificacoes. */
+  const solicitarVinculo = async (event) => {
     event.preventDefault()
-    setBusy('search')
-    setError('')
-    setSearchResult(null)
-    try {
-      const result = await authApi.buscarPorEmail(searchEmail)
-      setSearchResult(result)
-      notify('Paciente localizado com segurança.', 'success')
-    } catch (requestError) {
-      setError(errorMessage(requestError))
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const linkCaregiver = async () => {
-    if (!searchResult?.id) return
-    if (String(searchResult.id) === String(user.id)) {
-      notify('Você não pode ser o seu próprio cuidador.', 'error')
-      return
-    }
     setBusy('link')
+    setLinkError('')
     try {
-      const linked = await authApi.vincularCuidador(user.id, searchResult.id)
-      setProfile(linked)
-      setProfileForm(profileToForm(linked))
-      setSearchResult(null)
-      setSearchEmail('')
-      notify('Cuidador vinculado ao seu perfil.', 'success')
+      const solicitacao = await vinculosApi.solicitar({
+        email: linkForm.email,
+        tipo: linkForm.tipo,
+        mensagem: linkForm.mensagem,
+      })
+      setEnviados((current) => [solicitacao, ...current])
+      setLinkForm({ email: '', tipo: 'CUIDADO', mensagem: '' })
+      notify('Pedido enviado. A outra pessoa responde na área de notificações.', 'success')
     } catch (requestError) {
-      setError(errorMessage(requestError))
+      setLinkError(errorMessage(requestError))
     } finally {
       setBusy('')
     }
   }
 
-  const addDependent = async (event) => {
-    event.preventDefault()
-    setBusy('dependent')
-    setError('')
+  const cancelarVinculo = async (solicitacao) => {
+    setBusy(`cancel-${solicitacao.id}`)
     try {
-      const dependent = await authApi.adicionarDependente(dependentCredentials)
-      setDependents((current) => [dependent, ...current.filter((item) => item.id !== dependent.id)])
-      setDependentCredentials({ email: '', senha: '' })
-      notify('Dependente adicionado à sua rede.', 'success')
+      await vinculosApi.cancelar(solicitacao.id)
+      setEnviados((current) => current.map((item) => (item.id === solicitacao.id ? { ...item, status: 'CANCELADA' } : item)))
+      notify('Pedido cancelado.', 'info')
     } catch (requestError) {
-      setError(errorMessage(requestError))
+      notify(errorMessage(requestError), 'error')
     } finally {
       setBusy('')
     }
@@ -160,6 +149,8 @@ export default function CareNetworkPage() {
     }
   }
 
+  const recebidosPendentes = recebidos.filter((item) => item.status === 'PENDENTE').length
+
   const deleteAccount = async () => {
     setBusy('delete')
     try {
@@ -182,6 +173,17 @@ export default function CareNetworkPage() {
         action={<Button variant="light" onClick={load} icon={RefreshCw}>Atualizar</Button>}
       />
       <ErrorNotice message={error} />
+
+      {recebidosPendentes > 0 && (
+        <div className="notice notice--permission notice--permission--ok">
+          <Users size={19} />
+          <span>
+            Você tem {recebidosPendentes} {recebidosPendentes === 1 ? 'pedido de vínculo' : 'pedidos de vínculo'} aguardando resposta.
+            {' '}
+            <Link to="/notificacoes" className="text-link">Abrir a área de notificações</Link>
+          </span>
+        </div>
+      )}
 
       <div className="care-grid">
         <section className="care-profile">
@@ -269,7 +271,7 @@ export default function CareNetworkPage() {
         </section>
 
         <section className="care-dependents">
-          <SectionTitle eyebrow="Rede de apoio" title="Pacientes vinculados" description="Selecione um dependente na barra superior para acessar seus dados." />
+          <SectionTitle eyebrow="Rede de apoio" title="Pacientes vinculados" description="Selecione um dependente na barra superior para acessar os dados. Vínculos só existem após o aceite do pedido." />
           {loading ? <LoadingState /> : dependents.length ? (
             <div className="dependent-list">
               {dependents.map((dependent, index) => (
@@ -282,7 +284,7 @@ export default function CareNetworkPage() {
               ))}
             </div>
           ) : (
-            <EmptyState icon={Users} title="Nenhum dependente" description="Use uma das formas ao lado para iniciar uma rede de cuidado." />
+            <EmptyState icon={Users} title="Nenhum dependente vinculado" description="Envie um pedido de vínculo: a pessoa confirma na área de notificações antes de você ter acesso aos dados dela." />
           )}
         </section>
       </div>
@@ -290,38 +292,77 @@ export default function CareNetworkPage() {
       <section className="network-actions">
         <article className="network-action network-action--search">
           <span className="network-action__index">A</span>
-          <Search size={30} />
-          <h2>Escolher meu cuidador</h2>
-          <p>Busque pelo e-mail exato da pessoa que será vinculada ao seu perfil. A API mascara o e-mail na resposta.</p>
-          <form onSubmit={searchCaregiver}>
-            <div className="search-box">
-              <input type="email" value={searchEmail} onChange={(event) => setSearchEmail(event.target.value)} placeholder="cuidador@exemplo.com" aria-label="E-mail do cuidador" required />
-              <Button type="submit" loading={busy === 'search'}>Buscar</Button>
+          <UserPlus size={30} />
+          <h2>Solicitar vínculo de cuidado</h2>
+          <p>
+            Informe o e-mail da conta e o tipo de pedido. Não é preciso senha: quem vai ser
+            cuidado é quem aceita, na área de notificações.
+          </p>
+          <form className="form-grid" onSubmit={solicitarVinculo} noValidate>
+            <Field label="E-mail da conta" htmlFor="link-email" className="field--full" required>
+              <input
+                id="link-email"
+                className="input"
+                type="email"
+                value={linkForm.email}
+                onChange={(event) => setLinkForm({ ...linkForm, email: event.target.value })}
+                placeholder="cuidador@exemplo.com"
+              />
+            </Field>
+            <Field label="Tipo de pedido" htmlFor="link-type" className="field--full">
+              <select
+                id="link-type"
+                className="select"
+                value={linkForm.tipo}
+                onChange={(event) => setLinkForm({ ...linkForm, tipo: event.target.value })}
+              >
+                <option value="CUIDADO">Quero cuidar desta pessoa (dependente)</option>
+                <option value="RESPONSAVEL">Quero ter um responsável de cuidado</option>
+              </select>
+            </Field>
+            <Field label="Mensagem" htmlFor="link-message" className="field--full" hint="Opcional: aparece junto do pedido.">
+              <input
+                id="link-message"
+                className="input"
+                value={linkForm.mensagem}
+                onChange={(event) => setLinkForm({ ...linkForm, mensagem: event.target.value })}
+                placeholder="Ex.: sou seu filho, cuidarei das doses."
+              />
+            </Field>
+            {linkError && <p className="field__error field--full">{linkError}</p>}
+            <div className="form-actions field--full">
+              <Button type="submit" loading={busy === 'link'} icon={Send}>Enviar pedido</Button>
             </div>
           </form>
-          {searchResult && (
-            <div className="search-result">
-              <div><b>{searchResult.nome}</b><span>{searchResult.emailMascarado}</span></div>
-              <Button loading={busy === 'link'} onClick={linkCaregiver} icon={Link2}>Vincular ao meu perfil</Button>
-              <button type="button" onClick={() => setSearchResult(null)} aria-label="Fechar resultado"><X size={17} /></button>
-            </div>
-          )}
         </article>
 
         <article className="network-action network-action--credentials">
           <span className="network-action__index">B</span>
-          <ShieldCheck size={30} />
-          <h2>Adicionar dependente</h2>
-          <p>O paciente confirma a própria conta. Nenhuma senha é armazenada neste navegador.</p>
-          <form className="form-grid" onSubmit={addDependent}>
-            <Field label="E-mail do dependente" htmlFor="dependent-email" className="field--full" required>
-              <input id="dependent-email" className="input" type="email" value={dependentCredentials.email} onChange={(event) => setDependentCredentials({ ...dependentCredentials, email: event.target.value })} required />
-            </Field>
-            <Field label="Senha" htmlFor="dependent-password" className="field--full" required>
-              <input id="dependent-password" className="input" type="password" value={dependentCredentials.senha} onChange={(event) => setDependentCredentials({ ...dependentCredentials, senha: event.target.value })} required />
-            </Field>
-            <div className="form-actions field--full"><Button type="submit" loading={busy === 'dependent'} icon={Plus}>Adicionar à rede</Button></div>
-          </form>
+          <Clock3 size={30} />
+          <h2>Pedidos enviados</h2>
+          <p>Acompanhe o que você solicitou. O vínculo só existe depois do aceite de quem vai ser cuidado.</p>
+          {enviados.length ? (
+            <div className="dependent-list">
+              {enviados.map((solicitacao) => (
+                <article key={solicitacao.id}>
+                  <span><Send size={16} /></span>
+                  <div>
+                    <b>{solicitacao.destinatario?.email || 'Conta solicitada'}</b>
+                    <small>{solicitacao.tipo === 'RESPONSAVEL' ? 'Quero um responsável' : 'Quero cuidar'}</small>
+                  </div>
+                  {solicitacao.status === 'PENDENTE' ? (
+                    <Button size="sm" variant="ghost" loading={busy === `cancel-${solicitacao.id}`} onClick={() => cancelarVinculo(solicitacao)} icon={Unlink}>Cancelar</Button>
+                  ) : (
+                    <StatusBadge tone={solicitacao.status === 'ACEITA' ? 'green' : 'neutral'}>
+                      {solicitacao.status === 'ACEITA' ? 'Vinculado' : solicitacao.status === 'RECUSADA' ? 'Recusado' : 'Cancelado'}
+                    </StatusBadge>
+                  )}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={Send} title="Nenhum pedido enviado" description="Use o formulário ao lado para solicitar um vínculo." />
+          )}
         </article>
       </section>
 

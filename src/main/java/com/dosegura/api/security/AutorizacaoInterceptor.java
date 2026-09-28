@@ -2,7 +2,6 @@ package com.dosegura.api.security;
 
 import com.dosegura.api.exception.AcessoNegadoException;
 import com.dosegura.api.repo.AgendaRepo;
-import com.dosegura.api.repo.NotificacaoRepo;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +35,6 @@ public class AutorizacaoInterceptor implements HandlerInterceptor {
 
     @Autowired
     private AgendaRepo agendaRepo;
-
-    @Autowired
-    private NotificacaoRepo notificacaoRepo;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -81,17 +77,15 @@ public class AutorizacaoInterceptor implements HandlerInterceptor {
             } else {
                 autorizacao.exigirAcessoAoPaciente(id);
             }
-        } else if (padrao.equals("/paciente/{pacienteId}/vincular-cuidador/{cuidadorId}")) {
-            autorizacao.exigirProprioUsuario(id(variaveis, "pacienteId"));
         } else if (padrao.equals("/paciente/cuidador/{cuidadorId}/dependentes")) {
             autorizacao.exigirProprioUsuario(id(variaveis, "cuidadorId"));
+        } else if (padrao.equals("/paciente/{pacienteId}/desvincular-cuidador")) {
+            // Quem desfaz é o próprio paciente ou o cuidador atual dele.
+            autorizacao.exigirAcessoAoPaciente(id(variaveis, "pacienteId"));
         } else if (padrao.equals("/relatorios/familiar/{familiarId}")) {
             autorizacao.exigirProprioUsuario(id(variaveis, "familiarId"));
         } else if (padrao.equals("/agenda/{id}/concluir") || padrao.equals("/agenda/{id}")) {
             agendaRepo.findById(id(variaveis, "id"))
-                    .ifPresent(item -> autorizacao.exigirAcessoAoPaciente(item.getPaciente().getId()));
-        } else if (padrao.equals("/notificacoes/{id}/ler")) {
-            notificacaoRepo.findById(id(variaveis, "id"))
                     .ifPresent(item -> autorizacao.exigirAcessoAoPaciente(item.getPaciente().getId()));
         } else if (variaveis.containsKey("pacienteId")) {
             autorizacao.exigirAcessoAoPaciente(id(variaveis, "pacienteId"));

@@ -14,8 +14,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 
+/**
+ * Cadastro, sessão e vínculos.
+ *
+ * <p>O vínculo de cuidado não acontece mais por aqui: não existe mais
+ * {@code vincular-cuidador} nem adicionar dependente com senha. Ambos foram
+ * substituídos por pedido + confirmação na área de notificações
+ * (ver {@link VinculoController}).</p>
+ */
 @CrossOrigin(origins = "http://localhost:5174")
 @RestController
 @RequestMapping("/dosegura/api/")
@@ -47,24 +54,6 @@ public class PatientController {
                 .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("E-mail ou senha inválidos."));
     }
 
-    /**
-     * Substitui a antiga listagem de todos os pacientes. Busca por e-mail exato e devolve apenas
-     * o mínimo necessário para o usuário escolher o seu responsável.
-     */
-    @GetMapping("/paciente/buscar")
-    public ResponseEntity<Map<String, Object>> buscarPorEmail(@RequestParam String email) {
-        Optional<PacienteModel> encontrado = pacienteService.findByEmail(email);
-        if (encontrado.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        PacienteModel paciente = encontrado.get();
-        Map<String, Object> resumo = new HashMap<>();
-        resumo.put("id", paciente.getId());
-        resumo.put("nome", paciente.getNome());
-        resumo.put("emailMascarado", PacienteService.mascararEmail(paciente.getEmail()));
-        return ResponseEntity.ok(resumo);
-    }
-
     @GetMapping("/paciente/{id}")
     public ResponseEntity<PacienteModel> getPacienteById(@PathVariable Long id) {
         return pacienteService.findById(id)
@@ -93,60 +82,15 @@ public class PatientController {
         return ResponseEntity.noContent().build();
     }
 
-    /** O próprio paciente escolhe o seu responsável (a checagem de posse está no interceptor). */
-    @PutMapping("/paciente/{pacienteId}/vincular-cuidador/{cuidadorId}")
-    public ResponseEntity<PacienteModel> vincularCuidador(@PathVariable Long pacienteId, @PathVariable Long cuidadorId) {
-        if (pacienteId.equals(cuidadorId)) {
-            return ResponseEntity.badRequest().build();
-        }
-        try {
-            PacienteModel paciente = pacienteService.findById(pacienteId)
-                    .orElseThrow(() -> new RuntimeException("Paciente não encontrado"));
-            PacienteModel cuidador = pacienteService.findById(cuidadorId)
-                    .orElseThrow(() -> new RuntimeException("Cuidador não encontrado"));
-
-            paciente.setCuidador(cuidador);
-            return ResponseEntity.ok(pacienteService.save(paciente));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    /** O cuidador não pode se vincular sozinho: precisa provar que tem acesso à conta do paciente. */
-    @PostMapping("/paciente/dependentes")
-    public ResponseEntity<Object> adicionarDependente(@RequestBody Map<String, String> credenciaisDoPaciente) {
-        Long cuidadorId = autorizacao.idUsuarioAtual();
-
-        Optional<PacienteModel> dependente = pacienteService.login(
-                credenciaisDoPaciente.get("email"), credenciaisDoPaciente.get("senha"));
-
-        if (dependente.isEmpty()) {
-            // Status 400 (e não 401) para não ser confundido com sessão expirada.
-            Map<String, String> erro = new HashMap<>();
-            erro.put("codigo", "CREDENCIAIS_INVALIDAS");
-            erro.put("mensagem", "E-mail ou senha do paciente inválidos.");
-            return ResponseEntity.badRequest().body(erro);
-        }
-        if (dependente.get().getId().equals(cuidadorId)) {
-            Map<String, String> erro = new HashMap<>();
-            erro.put("codigo", "DADOS_INVALIDOS");
-            erro.put("mensagem", "Você não pode ser responsável por si mesmo.");
-            return ResponseEntity.badRequest().body(erro);
-        }
-
-        PacienteModel cuidador = autorizacao.usuarioAtual();
-        PacienteModel paciente = dependente.get();
-        paciente.setCuidador(cuidador);
-        return ResponseEntity.ok(pacienteService.save(paciente));
-    }
-
-    /** O paciente ou o cuidador atual podem desfazer o vínculo. */
+    /**
+     * Desfaz o vínculo. Continua liberado porque desfazer é direito do próprio,
+     * mas exige que a conta seja a paciente ou o cuidador atual (checado no interceptor).
+     */
     @PutMapping("/paciente/{pacienteId}/desvincular-cuidador")
     public ResponseEntity<PacienteModel> desvincularCuidador(@PathVariable Long pacienteId) {
         try {
             PacienteModel paciente = pacienteService.findById(pacienteId)
-                    .orElseThrow(() -> new RuntimeException("Paciente não encontrado"));
-
+                    .orElseThrow(() -> new NoSuchElementException("Paciente não encontrado"));
             paciente.setCuidador(null);
             return ResponseEntity.ok(pacienteService.save(paciente));
         } catch (RuntimeException e) {

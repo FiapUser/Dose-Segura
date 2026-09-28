@@ -1578,9 +1578,40 @@
 
 .agenda-overview {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 22px;
+}
+
+.agenda-overview__card--late {
+  border-color: #fecdca;
+  background: #fff8f7;
+}
+
+.agenda-overview__card--late strong {
+  color: var(--red-600);
+}
+
+.agenda-item--late {
+  border-color: #fecdca;
+  background: #fff8f7;
+}
+
+.agenda-item--done {
+  opacity: 0.72;
+}
+
+.agenda-item__date span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.agenda-item__content > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .agenda-overview > div,
@@ -1629,8 +1660,23 @@
 }
 
 .agenda-item__dose {
-  font-size: 13px;
+  display: grid;
+  gap: 2px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.agenda-item__dose span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--muted);
+}
+
+.agenda-item__dose strong {
+  font-size: 15px;
+  color: var(--blue-950);
 }
 
 .agenda-item__actions {
@@ -1770,6 +1816,31 @@
   background: var(--blue-50);
 }
 
+.current-caregiver {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--blue-50);
+  border: 1px solid var(--blue-100);
+}
+
+.current-caregiver div {
+  display: grid;
+  gap: 2px;
+}
+
+.current-caregiver span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--blue-700);
+}
+
 .care-profile__badges {
   display: flex;
   flex-wrap: wrap;
@@ -1798,6 +1869,15 @@
   height: 160px;
   border-radius: 50%;
   background: var(--green-50);
+  /* Fica ATRÁS do conteudo: sem isso ela cobria os botões do formulario
+     (e o :hover do botão criava contexto de empilhamento, "consertando" no mouse). */
+  z-index: 0;
+  pointer-events: none;
+}
+
+.care-profile > *:not(.care-profile__shape) {
+  position: relative;
+  z-index: 1;
 }
 
 .care-grid {
@@ -1827,33 +1907,70 @@
 }
 
 .network-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px;
 }
 
+/* Cartão de solicitação de vínculo: substitui os antigos formulários
+   "escolher cuidador" (vínculo direto) e "adicionar dependente" (com senha). */
 .network-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: var(--radius-pill);
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 24px;
+  border-radius: var(--radius-lg);
   background: #fff;
   border: 1px solid var(--line);
-  font-weight: 700;
-  font-size: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.network-action > svg {
+  color: var(--blue-700);
+}
+
+.network-action h2 {
+  font-size: 19px;
+  color: var(--blue-950);
+}
+
+.network-action > p {
+  font-size: 14.5px;
+  color: var(--muted);
+}
+
+.network-action__index {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--blue-50);
   color: var(--blue-800);
+  font-weight: 800;
 }
 
 .network-action--credentials {
-  background: var(--green-50);
   border-color: var(--green-100);
+  background: linear-gradient(180deg, #fff, var(--green-50));
+}
+
+.network-action--credentials > svg {
+  color: var(--green-600);
+}
+
+.network-action--credentials .network-action__index {
+  background: var(--green-100);
   color: var(--green-700);
 }
 
 .network-action--search {
-  background: var(--blue-50);
   border-color: var(--blue-100);
+  background: linear-gradient(180deg, #fff, var(--blue-50));
+}
+
+.network-action .dependent-list {
+  margin-top: 4px;
 }
 
 /* ------------------------------------------------------- relatórios ---- */
@@ -2318,5 +2435,102 @@
 
   .upload-field {
     grid-template-columns: 1fr;
+  }
+}
+
+
+/* ------------------------------------------- pedidos de vinculo de cuidado */
+
+.vinculo-pendente {
+  margin-bottom: 24px;
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  border: 2px solid var(--green-100);
+  box-shadow: var(--shadow-sm);
+}
+
+.vinculo-pendente__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  color: var(--green-700);
+}
+
+.vinculo-pendente__head h2 {
+  font-size: 19px;
+  color: var(--blue-950);
+}
+
+.vinculo-pendente__item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--green-50);
+  border: 1px solid var(--green-100);
+}
+
+.vinculo-pendente__avatar {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--blue-700);
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.vinculo-pendente__item h3 {
+  font-size: 16px;
+}
+
+.vinculo-pendente__item p {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.vinculo-pendente__item small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vinculo-pendente__actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.vinculo-historico {
+  margin-top: 32px;
+}
+
+.vinculo-historico h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.notifications-footnote {
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .vinculo-pendente__item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .vinculo-pendente__actions {
+    margin-left: 0;
+    width: 100%;
   }
 }

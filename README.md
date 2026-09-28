@@ -231,13 +231,36 @@ Base: `/dosegura/api`
 | Carrinho       | `/carrinho/paciente/{id}` (obter, adicionar, remover, finalizar)       |
 | Agenda         | `/agenda/paciente/{id}`, `/agenda/{id}/concluir`                        |
 | Estoque/Painel | `/dashboard-estoque/estoque`, `/dashboard-estoque/painel/paciente/{id}` |
-| Notificações   | `/notificacoes/paciente/{id}`, `/notificacoes/{id}/ler`                 |
+| Notificações   | `/notificacoes/minhas`, `/notificacoes/{id}/ler` (em memória)        |
+| Vínculos       | `/vinculos/solicitar`, `/vinculos/recebidos`, `/vinculos/{id}/aceitar`   |
 | Relatórios     | `/relatorios/configurar`, `/relatorios/familiar/{id}`                   |
 | Imagens        | `/imagens`, `/imagens/config`, `/imagens/{tipo}/{id}`                  |
 | Ilustrações    | `GET /ilustracoes/{tipo}/{nome}` (SVG público)                         |
 
 Autenticação por JWT (`Authorization: Bearer ...`); erros no formato
 `{ "codigo": "...", "mensagem": "..." }`.
+
+### Vínculo de cuidado (confirmação obrigatória)
+
+Não existe mais vínculo imediato nem senha de dependente:
+
+1. quem cuida (ou quer um responsável) envia `POST /vinculos/solicitar` com o
+   e-mail da outra conta e o tipo (`CUIDADO` ou `RESPONSAVEL`);
+2. a conta destinatária recebe o alerta na **área de notificações** e decide em
+   **"Sim, vincular"** ou **"Não quero"**;
+3. só no aceite o cuidador é gravado em `paciente.cuidador`.
+
+Regras: o pedido duplicado pendente é bloqueado, e-mail inexistente retorna 400
+com mensagem clara, apenas o destinatário responde (403 nos demais) e apenas quem
+enviou cancela. Os endpoints antigos `PUT /paciente/{id}/vincular-cuidador/{id}` e
+`POST /paciente/dependentes` foram removidos.
+
+### Notificações
+
+Os alertas ficam **em memória**: máximo de 20 por conta, expiram em 24 horas e
+somem quando a aplicação reinicia. Não há mais histórico salvo no banco (a tabela
+`notificacoes_sistema` deixou de ser usada). A aba "Histórico" foi removida da
+interface.
 
 ---
 
@@ -251,7 +274,8 @@ farmácia:
 - cards de produto com fita de desconto, selos, preço riscado, parcelas e
   botão de compra; cartões de farmácia e fornecedor com foto, avaliação e prazo;
 - ícones de saúde/farmácia (cápsula, cruz, estetoscópio, seringa, coração);
-- marca nova (`DoseLogo`): cápsula com cruz de saúde;
+- marca (`EscudoDoseSegura`): escudo com relógio e selo de confirmação verde, no
+  cabeçalho, no rodapé e no favicon;
 - acessibilidade: corpo de texto grande, alvos de toque ≥ 44 px, foco visível,
   contraste alto e ícones com rótulo textual.
 

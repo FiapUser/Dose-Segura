@@ -68,15 +68,10 @@ async function request(path, { method = 'GET', body, params, token, formData } =
 
 export const authApi = {
   login: (email, senha) => request('/login', { method: 'POST', body: { email, senha }, token: null }),
-  buscarPorEmail: (email) => request('/paciente/buscar', { params: { email } }),
   obter: (id) => request(`/paciente/${id}`),
   cadastrar: (data) => request('/paciente', { method: 'POST', body: data, token: null }),
   atualizar: (id, data) => request(`/paciente/${id}`, { method: 'PUT', body: data }),
   excluir: (id) => request(`/paciente/${id}`, { method: 'DELETE' }),
-  vincularCuidador: (pacienteId, cuidadorId) =>
-    request(`/paciente/${pacienteId}/vincular-cuidador/${cuidadorId}`, { method: 'PUT' }),
-  adicionarDependente: (credenciais) =>
-    request('/paciente/dependentes', { method: 'POST', body: credenciais }),
   desvincularCuidador: (pacienteId) =>
     request(`/paciente/${pacienteId}/desvincular-cuidador`, { method: 'PUT' }),
   listarDependentes: (cuidadorId) => request(`/paciente/cuidador/${cuidadorId}/dependentes`),
@@ -84,8 +79,9 @@ export const authApi = {
 
 export const notificationApi = {
   ativas: (pacienteId) => request(`/notificacoes/paciente/${pacienteId}`),
+  minhas: () => request('/notificacoes/minhas'),
   historico: (pacienteId) => request(`/notificacoes/paciente/${pacienteId}/historico`),
-  marcarComoLida: (id) => request(`/notificacoes/${id}/ler`, { method: 'PUT' }),
+  alternarLeitura: (id) => request(`/notificacoes/${id}/ler`, { method: 'PUT' }),
 }
 
 export const marketplaceApi = {
@@ -133,6 +129,7 @@ export const agendaApi = {
   criar: (data) => request('/agenda', { method: 'POST', body: data }),
   listar: (pacienteId) => request(`/agenda/paciente/${pacienteId}`),
   listarPendentes: (pacienteId) => request(`/agenda/paciente/${pacienteId}/pendentes`),
+  resumo: (pacienteId) => request(`/agenda/paciente/${pacienteId}/resumo`),
   concluir: (id) => request(`/agenda/${id}/concluir`, { method: 'PUT' }),
   excluir: (id) => request(`/agenda/${id}`, { method: 'DELETE' }),
 }
@@ -155,6 +152,16 @@ export const imagensApi = {
   remover: (tipo, id) => request(`/imagens/${tipo}/${id}`, { method: 'DELETE' }),
 }
 
+export const vinculosApi = {
+  solicitar: (dados) => request('/vinculos/solicitar', { method: 'POST', body: dados }),
+  recebidos: () => request('/vinculos/recebidos'),
+  enviados: () => request('/vinculos/enviados'),
+  resumo: () => request('/vinculos/resumo'),
+  aceitar: (id) => request(`/vinculos/${id}/aceitar`, { method: 'PUT' }),
+  recusar: (id) => request(`/vinculos/${id}/recusar`, { method: 'PUT' }),
+  cancelar: (id) => request(`/vinculos/${id}/cancelar`, { method: 'PUT' }),
+}
+
 export const api = {
   auth: authApi,
   notifications: notificationApi,
@@ -165,6 +172,7 @@ export const api = {
   agenda: agendaApi,
   reports: reportApi,
   imagens: imagensApi,
+  vinculos: vinculosApi,
 }
 
 export { API_BASE }

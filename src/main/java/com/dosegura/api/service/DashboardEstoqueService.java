@@ -23,7 +23,7 @@ public class DashboardEstoqueService {
     private AgendaRepo agendaRepo;
 
     @Autowired
-    private NotificacaoRepo notificacaoRepo;
+    private NotificacaoService notificacoes;
 
     @Autowired
     private Repo pacienteRepo;
@@ -69,27 +69,30 @@ public class DashboardEstoqueService {
         }
     }
 
-    @Scheduled(cron = "0 0 0 * * ?")
+    /**
+     * Alerta de estoque baixo uma vez por dia. Vai para a área de notificações em
+     * memória: nada é gravado no banco, então não existe histórico de alertas.
+     */
+    @Scheduled(cron = "0 0 8 * * ?")
     public void verificarEstoquesCriticos() {
-        List<EstoquePacienteModel> todosEstoques = estoqueRepo.findAll();
-
-        for (EstoquePacienteModel estoque : todosEstoques) {
+        for (EstoquePacienteModel estoque : estoqueRepo.findAll()) {
             int diasRestantes = estoque.getDiasRestantes();
-
-            if (diasRestantes <= 5 && diasRestantes > 0) {
-                NotificacaoModel alerta = new NotificacaoModel();
-                alerta.setPaciente(estoque.getPaciente());
-                alerta.setTitulo("Alerta de Estoque Baixo!");
-                alerta.setMensagem(String.format("Atenção: O seu medicamento '%s' acabará em %d dias. Programe-se para repor no marketplace Eurofarma.",
-                        estoque.getNomeMedicamento(), diasRestantes));
-                alerta.setDataDisparo(LocalDateTime.now());
-                notificacaoRepo.save(alerta);
+            if (diasRestantes <= 5) {
+                String titulo = diasRestantes == 0
+                        ? "⚠️ Medicamento acabou"
+                        : String.format("⚠️ %s acaba em %d dias", estoque.getNomeMedicamento(), diasRestantes);
+                String mensagem = diasRestantes == 0
+                        ? String.format("O estoque de %s zerou. Reabra o pedido no marketplace para não "
+                                + "interromper o tratamento.", estoque.getNomeMedicamento())
+                        : String.format("Atenção: o seu %s acabará em %d dias. Programe-se para repor na rede "
+                                + "de farmácias parceiras.", estoque.getNomeMedicamento(), diasRestantes);
+                notificacoes.registrar(estoque.getPaciente().getId(), titulo, mensagem, null, null);
             }
         }
     }
 
     public Map<String, Object> gerarDashboard(Long pacienteId) {
-        List<AgendaModel> compromissos = agendaRepo.findByPacienteId(pacienteId);
+        List<AgendaModel> compromissos = agendaRepo.findByPacienteIdOrderByHorarioInicioAsc(pacienteId);
         List<EstoquePacienteModel> estoques = estoqueRepo.findByPacienteId(pacienteId);
 
         long administrados = compromissos.stream().filter(c -> c.getConcluido() && c.getTipo().equalsIgnoreCase("MEDICAMENTO")).count();
@@ -103,7 +106,14 @@ public class DashboardEstoqueService {
         dashboard.put("medicamentosAdministrados", administrados);
         dashboard.put("medicamentosPendentes", pendentes);
         dashboard.put("taxaAdesaoPorcentagem", Math.round(taxaAdesao * 10.0) / 10.0);
-        dashboard.put("proximosHorarios", compromissos.stream().filter(c -> !c.getConcluido()).limit(5).toList());
+        dashboard.put("proximosHorarios", compromissos.stream()
+                .filter(c -> !c.getConcluido())
+                .filter(c -> c.getHorarioInicio() != null && !c.getHorarioInicio().isBefore(LocalDateTime.now()))
+                .limit(5).toList());
+        dashboard.put("compromissosAtrasados", compromissos.stream()
+                .filter(c -> !c.getConcluido())
+                .filter(c -> c.getHorarioInicio() != null && c.getHorarioInicio().isBefore(LocalDateTime.now()))
+                .count());
         dashboard.put("situacaoEstoque", estoques.stream().map(e -> Map.of(
                 "medicamento", e.getNomeMedicamento(),
                 "quantidadeAtual", e.getQuantidadeAtualComprimidos(),

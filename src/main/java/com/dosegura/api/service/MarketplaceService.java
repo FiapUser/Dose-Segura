@@ -61,7 +61,11 @@ public class MarketplaceService {
             fornecedor.setTelefone(details.getTelefone());
             fornecedor.setAvaliacao(details.getAvaliacao());
             fornecedor.setDescricao(details.getDescricao());
-            fornecedor.setUrlLogo(details.getUrlLogo());
+            // A URL do logo só muda pelo upload no Cloudinary: um payload sem o campo
+            // não pode apagar a imagem que já está gravada.
+            if (details.getUrlLogo() != null && !details.getUrlLogo().isBlank()) {
+                fornecedor.setUrlLogo(details.getUrlLogo());
+            }
             return fornecedorRepo.save(fornecedor);
         }).orElseThrow(() -> new RuntimeException("Fornecedor não encontrado"));
     }
