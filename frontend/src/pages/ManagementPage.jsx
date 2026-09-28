@@ -260,8 +260,14 @@ export default function ManagementPage() {
         ? current.map((item) => (item.id === salvo.id ? salvo : item))
         : [salvo, ...current]))
       setEditing(salvo)
-      setModalOpen(false)
-      notify(editing ? 'Registro atualizado com sucesso.' : 'Registro criado com sucesso. Agora envie a imagem.', 'success')
+      if (editing) {
+        setModalOpen(false)
+        notify('Registro atualizado com sucesso.', 'success')
+      } else {
+        // Novo registro: o modal continua aberto para o usuário enviar a imagem
+        // imediatamente (o upload exige o id, que só existe depois de salvar).
+        notify('Registro criado. Agora envie a imagem abaixo.', 'success')
+      }
     } catch (requestError) {
       setError(errorMessage(requestError))
     } finally {

@@ -33,7 +33,7 @@ export default function CareNetworkPage() {
   const [profile, setProfile] = useState(null)
   const [profileForm, setProfileForm] = useState(() => profileToForm(user))
   const [dependents, setDependents] = useState([])
-  const [linkForm, setLinkForm] = useState({ email: '', tipo: 'CUIDADO', mensagem: '' })
+  const [linkForm, setLinkForm] = useState({ email: '', tipo: 'PRESTAR_CUIDADO', mensagem: '' })
   const [enviados, setEnviados] = useState([])
   const [recebidos, setRecebidos] = useState([])
   const [linkError, setLinkError] = useState('')
@@ -100,7 +100,7 @@ export default function CareNetworkPage() {
         mensagem: linkForm.mensagem,
       })
       setEnviados((current) => [solicitacao, ...current])
-      setLinkForm({ email: '', tipo: 'CUIDADO', mensagem: '' })
+      setLinkForm({ email: '', tipo: 'PRESTAR_CUIDADO', mensagem: '' })
       notify('Pedido enviado. A outra pessoa responde na área de notificações.', 'success')
     } catch (requestError) {
       setLinkError(errorMessage(requestError))
@@ -309,15 +309,20 @@ export default function CareNetworkPage() {
                 placeholder="cuidador@exemplo.com"
               />
             </Field>
-            <Field label="Tipo de pedido" htmlFor="link-type" className="field--full">
+            <Field
+              label="Quem cuida de quem?"
+              htmlFor="link-type"
+              className="field--full"
+              hint="O pedido é enviado para a outra conta, que aceita ou recusa na área de notificações."
+            >
               <select
                 id="link-type"
                 className="select"
                 value={linkForm.tipo}
                 onChange={(event) => setLinkForm({ ...linkForm, tipo: event.target.value })}
               >
-                <option value="CUIDADO">Quero cuidar desta pessoa (dependente)</option>
-                <option value="RESPONSAVEL">Quero ter um responsável de cuidado</option>
+                <option value="PRESTAR_CUIDADO">Eu cuido de alguém (eu sou o cuidador)</option>
+                <option value="RECEBER_CUIDADO">Quero que alguém cuide de mim (eu sou o paciente)</option>
               </select>
             </Field>
             <Field label="Mensagem" htmlFor="link-message" className="field--full" hint="Opcional: aparece junto do pedido.">
@@ -348,7 +353,7 @@ export default function CareNetworkPage() {
                   <span><Send size={16} /></span>
                   <div>
                     <b>{solicitacao.destinatario?.email || 'Conta solicitada'}</b>
-                    <small>{solicitacao.tipo === 'RESPONSAVEL' ? 'Quero um responsável' : 'Quero cuidar'}</small>
+                    <small>{solicitacao.tipoRotulo || solicitacao.tipo}</small>
                   </div>
                   {solicitacao.status === 'PENDENTE' ? (
                     <Button size="sm" variant="ghost" loading={busy === `cancel-${solicitacao.id}`} onClick={() => cancelarVinculo(solicitacao)} icon={Unlink}>Cancelar</Button>

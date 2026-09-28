@@ -79,9 +79,9 @@ export const authApi = {
 
 export const notificationApi = {
   ativas: (pacienteId) => request(`/notificacoes/paciente/${pacienteId}`),
-  minhas: () => request('/notificacoes/minhas'),
   historico: (pacienteId) => request(`/notificacoes/paciente/${pacienteId}/historico`),
-  alternarLeitura: (id) => request(`/notificacoes/${id}/ler`, { method: 'PUT' }),
+  minhas: () => request('/notificacoes/minhas'),
+  marcarComoLida: (id) => request(`/notificacoes/${id}/ler`, { method: 'PUT' }),
 }
 
 export const marketplaceApi = {

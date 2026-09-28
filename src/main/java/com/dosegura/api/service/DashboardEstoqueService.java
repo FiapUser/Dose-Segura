@@ -69,25 +69,23 @@ public class DashboardEstoqueService {
         }
     }
 
-    /**
-     * Alerta de estoque baixo uma vez por dia. Vai para a área de notificações em
-     * memória: nada é gravado no banco, então não existe histórico de alertas.
-     */
+    /** Alerta de estoque baixo uma vez por dia, gravado no histórico de notificações. */
     @Scheduled(cron = "0 0 8 * * ?")
     public void verificarEstoquesCriticos() {
         for (EstoquePacienteModel estoque : estoqueRepo.findAll()) {
             int diasRestantes = estoque.getDiasRestantes();
-            if (diasRestantes <= 5) {
-                String titulo = diasRestantes == 0
-                        ? "⚠️ Medicamento acabou"
-                        : String.format("⚠️ %s acaba em %d dias", estoque.getNomeMedicamento(), diasRestantes);
-                String mensagem = diasRestantes == 0
-                        ? String.format("O estoque de %s zerou. Reabra o pedido no marketplace para não "
-                                + "interromper o tratamento.", estoque.getNomeMedicamento())
-                        : String.format("Atenção: o seu %s acabará em %d dias. Programe-se para repor na rede "
-                                + "de farmácias parceiras.", estoque.getNomeMedicamento(), diasRestantes);
-                notificacoes.registrar(estoque.getPaciente().getId(), titulo, mensagem, null, null);
+            if (diasRestantes > 5) {
+                continue;
             }
+            String titulo = diasRestantes == 0
+                    ? "Medicamento acabou"
+                    : String.format("%s acaba em %d dias", estoque.getNomeMedicamento(), diasRestantes);
+            String mensagem = diasRestantes == 0
+                    ? String.format("O estoque de %s zerou. Reabra o pedido no marketplace para não "
+                            + "interromper o tratamento.", estoque.getNomeMedicamento())
+                    : String.format("Atenção: o seu %s acabará em %d dias. Programe-se para repor na rede "
+                            + "de farmácias parceiras.", estoque.getNomeMedicamento(), diasRestantes);
+            notificacoes.registrar(estoque.getPaciente().getId(), titulo, mensagem, null, null);
         }
     }
 

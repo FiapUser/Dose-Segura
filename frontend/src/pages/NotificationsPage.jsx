@@ -1,5 +1,18 @@
-import { useEffect, useState } from 'react'
-import { Bell, Check, CheckCheck, Inbox, RefreshCw, Users, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Bell,
+  BellOff,
+  CalendarClock,
+  Check,
+  CheckCheck,
+  Clock3,
+  Inbox,
+  PackageX,
+  Pill,
+  RefreshCw,
+  Users,
+  X,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { notificationApi, vinculosApi } from '../services/api'
@@ -8,15 +21,29 @@ import { Button, EmptyState, ErrorNotice, LoadingState, PageIntro, StatusBadge }
 
 const ACAO_VINCULO = 'VINCULO'
 
+/** Ícone do alerta conforme o assunto (nada de emoji na interface). */
+function iconeDoAlerta(alerta) {
+  if (alerta.acaoTipo === ACAO_VINCULO) return Users
+  if (alerta.acaoId) return Check
+  if (String(alerta.titulo || '').includes('estoque') || String(alerta.titulo || '').toLowerCase().includes('acaba')) {
+    return PackageX
+  }
+  if (String(alerta.titulo || '').toLowerCase().includes('medicamento')) return Pill
+  if (String(alerta.titulo || '').toLowerCase().includes('compromisso')) return CalendarClock
+  return Bell
+}
+
 /**
  * Área de notificações.
  *
- * <p>Os alertas ficam apenas em memória: não há histórico salvo. É daqui que a
- * pessoa responde aos pedidos de vínculo de cuidado ("deseja vincular?").</p>
+ * <p>Os alertas são gravados, então há duas listas: as ativas (não lidas) e o
+ * histórico. É daqui que a pessoa responde aos pedidos de vínculo de cuidado
+ * ("Deseja vincular?").</p>
  */
 export default function NotificationsPage() {
   const { user, refreshCurrentUser } = useAuth()
   const { notify } = useToast()
+  const [view, setView] = useState('ativas')
   const [items, setItems] = useState([])
   const [solicitacoes, setSolicitacoes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -37,11 +64,17 @@ export default function NotificationsPage() {
 
   useEffect(load, [user?.id])
 
-  const alternarLeitura = async (alerta) => {
+  const ativas = useMemo(() => items.filter((item) => !item.lida), [items])
+  const historico = useMemo(() => items.filter((item) => item.lida), [items])
+  const visiveis = view === 'ativas' ? ativas : historico
+  const pendentes = solicitacoes.filter((item) => item.status === 'PENDENTE')
+  const respondidos = solicitacoes.filter((item) => item.status !== 'PENDENTE')
+
+  const marcarComoLida = async (alerta) => {
     setBusyId(alerta.id)
     try {
-      const updated = await notificationApi.alternarLeitura(alerta.id)
-      setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      await notificationApi.marcarComoLida(alerta.id)
+      setItems((current) => current.map((item) => (item.id === alerta.id ? { ...item, lida: true } : item)))
     } catch (requestError) {
       notify(errorMessage(requestError), 'error')
     } finally {
@@ -68,16 +101,25 @@ export default function NotificationsPage() {
     }
   }
 
-  const pendentes = solicitacoes.filter((item) => item.status === 'PENDENTE')
-  const respondidos = solicitacoes.filter((item) => item.status !== 'PENDENTE')
-
   return (
     <div className="page-shell page-container notifications-page">
       <PageIntro
         eyebrow="Sinais de cuidado"
         title="Notificações em primeiro plano."
         description="Alertas da agenda, do estoque e os pedidos de vínculo que aguardam a sua resposta."
-        action={<Button variant="ghost" onClick={load} icon={RefreshCw}>Atualizar</Button>}
+        action={(
+          <div className="page-actions">
+            <Button variant="ghost" onClick={load} icon={RefreshCw}>Atualizar</Button>
+            <div className="segmented-control" role="tablist">
+              <button type="button" role="tab" aria-selected={view === 'ativas'} className={view === 'ativas' ? 'active' : ''} onClick={() => setView('ativas')}>
+                <Bell size={17} /> Ativas <b>{ativas.length}</b>
+              </button>
+              <button type="button" role="tab" aria-selected={view === 'historico'} className={view === 'historico' ? 'active' : ''} onClick={() => setView('historico')}>
+                <Clock3 size={17} /> Histórico <b>{historico.length}</b>
+              </button>
+            </div>
+          </div>
+        )}
       />
       <ErrorNotice message={error} onRetry={load} />
 
@@ -98,30 +140,18 @@ export default function NotificationsPage() {
               <div>
                 <h3>{solicitacao.solicitante?.nome || 'Conta parceira'}</h3>
                 <p>
-                  {solicitacao.tipo === 'RESPONSAVEL'
-                    ? 'quer ser seu responsável de cuidado.'
-                    : 'quer cuidar da sua saúde.'}
+                  {solicitacao.tipo === 'PRESTAR_CUIDADO'
+                    ? 'quer cuidar da sua saúde.'
+                    : 'quer ser seu responsável de cuidado.'}
                   {solicitacao.mensagem ? ` “${solicitacao.mensagem}”` : ''}
                 </p>
                 <small>Recebido em {formatDate(solicitacao.criadoEm, true)}</small>
               </div>
               <div className="vinculo-pendente__actions">
-                <Button
-                  variant="green"
-                  size="sm"
-                  loading={busyId === solicitacao.id}
-                  onClick={() => responderVinculo(solicitacao, true)}
-                  icon={Check}
-                >
+                <Button variant="green" size="sm" loading={busyId === solicitacao.id} onClick={() => responderVinculo(solicitacao, true)} icon={Check}>
                   Sim, vincular
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  loading={busyId === solicitacao.id}
-                  onClick={() => responderVinculo(solicitacao, false)}
-                  icon={X}
-                >
+                <Button variant="ghost" size="sm" loading={busyId === solicitacao.id} onClick={() => responderVinculo(solicitacao, false)} icon={X}>
                   Não quero
                 </Button>
               </div>
@@ -132,37 +162,36 @@ export default function NotificationsPage() {
 
       {loading ? (
         <LoadingState label="Carregando notificações" />
-      ) : items.length === 0 ? (
+      ) : visiveis.length === 0 ? (
         <EmptyState
-          icon={Inbox}
-          title="Nenhum alerta ativo"
-          description="Os lembretes de medicamento, consulta e estoque baixo aparecem aqui enquanto valerem."
+          icon={view === 'ativas' ? Inbox : BellOff}
+          title={view === 'ativas' ? 'Nenhuma notificação ativa' : 'Nenhum histórico'}
+          description={
+            view === 'ativas'
+              ? 'Os lembretes de medicamento, consulta e estoque baixo aparecem aqui enquanto valerem.'
+              : 'As notificações que você já marcou como lidas ficam guardadas aqui.'
+          }
         />
       ) : (
         <div className="notification-list">
-          {items.map((notification, index) => {
-            const read = Boolean(notification.lida ?? notification.lido)
+          {visiveis.map((notification, index) => {
+            const Icone = iconeDoAlerta(notification)
+            const lida = Boolean(notification.lida)
             return (
-              <article className={read ? 'notification-card notification-card--read' : 'notification-card'} key={notification.id || index}>
+              <article className={lida ? 'notification-card notification-card--read' : 'notification-card'} key={notification.id || index}>
                 <div className="notification-card__index">{String(index + 1).padStart(2, '0')}</div>
-                <div className="notification-card__icon">{read ? <CheckCheck size={25} /> : <Bell size={25} />}</div>
+                <div className="notification-card__icon"><Icone size={24} /></div>
                 <div className="notification-card__body">
                   <div className="notification-card__meta">
-                    <StatusBadge tone={read ? 'neutral' : 'red'}>{read ? 'Lida' : 'Nova'}</StatusBadge>
+                    <StatusBadge tone={lida ? 'neutral' : 'red'}>{lida ? 'Lida' : 'Nova'}</StatusBadge>
                     <span>{formatDate(notification.dataDisparo, true)}</span>
                   </div>
-                  <h2>{notification.titulo || 'Alerta'}</h2>
+                  <h2>{notification.titulo || 'Notificação'}</h2>
                   <p>{notification.mensagem || 'Sem detalhes informados.'}</p>
                 </div>
-                {notification.acaoTipo !== ACAO_VINCULO && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    loading={busyId === notification.id}
-                    onClick={() => alternarLeitura(notification)}
-                    icon={read ? Bell : Check}
-                  >
-                    {read ? 'Marcar como nova' : 'Marcar como lida'}
+                {notification.acaoTipo !== ACAO_VINCULO && !lida && (
+                  <Button variant="ghost" size="sm" loading={busyId === notification.id} onClick={() => marcarComoLida(notification)} icon={CheckCheck}>
+                    Marcar como lida
                   </Button>
                 )}
               </article>
@@ -173,7 +202,7 @@ export default function NotificationsPage() {
 
       {respondidos.length > 0 && (
         <section className="vinculo-historico">
-          <h2>Pedidos já respondidos</h2>
+          <h2>Pedidos de vínculo já respondidos</h2>
           <div className="dependent-list">
             {respondidos.map((solicitacao) => (
               <article key={solicitacao.id}>
@@ -190,10 +219,6 @@ export default function NotificationsPage() {
           </div>
         </section>
       )}
-
-      <p className="notifications-footnote">
-        Os alertas ficam apenas em memória e expiram em 24 horas: não há histórico salvo no servidor.
-      </p>
     </div>
   )
 }

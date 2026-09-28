@@ -191,6 +191,13 @@ ul, ol {
 .escudo {
   flex-shrink: 0;
   display: block;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.dose-logo--inverted .escudo {
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
 }
 
 .dose-logo__mark {

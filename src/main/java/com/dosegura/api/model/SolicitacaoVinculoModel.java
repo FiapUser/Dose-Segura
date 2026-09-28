@@ -15,6 +15,12 @@ import java.time.LocalDateTime;
  * <p>Substitui o vínculo imediato: antes bastava informar o e-mail (ou a senha) da
  * outra conta. Agora quem solicita envia o pedido, e o <b>destinatário confirma na
  * área de notificações</b> se deseja vincular. Só aí o cuidador é gravado.</p>
+ *
+ * <p>Tipos (do ponto de vista de quem solicita):</p>
+ * <ul>
+ *   <li>{@code PRESTAR_CUIDADO}: eu quero cuidar de alguém — eu viro o cuidador;</li>
+ *   <li>{@code RECEBER_CUIDADO}: eu quero alguém cuidando de mim — eu viro o paciente.</li>
+ * </ul>
  */
 @Entity
 @Table(name = "solicitacoes_vinculo",
@@ -29,10 +35,11 @@ public class SolicitacaoVinculoModel {
     public static final String STATUS_RECUSADA = "RECUSADA";
     public static final String STATUS_CANCELADA = "CANCELADA";
 
-    /** Cuidador pedindo para cuidar de um paciente. */
-    public static final String TIPO_CUIDADO = "CUIDADO";
-    /** Paciente pedindo para ter um cuidador. */
-    public static final String TIPO_RESPONSAVEL = "RESPONSAVEL";
+    /** Quero cuidar de alguém: eu sou o cuidador. */
+    public static final String PRESTAR_CUIDADO = "PRESTAR_CUIDADO";
+
+    /** Quero que alguém cuide de mim: eu sou o paciente. */
+    public static final String RECEBER_CUIDADO = "RECEBER_CUIDADO";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -49,7 +56,7 @@ public class SolicitacaoVinculoModel {
     private PacienteModel destinatario;
 
     @Column(length = 30, nullable = false)
-    private String tipo = TIPO_CUIDADO;
+    private String tipo = PRESTAR_CUIDADO;
 
     @Column(length = 30, nullable = false)
     private String status = STATUS_PENDENTE;
@@ -65,5 +72,12 @@ public class SolicitacaoVinculoModel {
     @JsonIgnore
     public boolean isPendente() {
         return STATUS_PENDENTE.equals(status);
+    }
+
+    /** Descrição curta do pedido, exposta para a interface. */
+    public String getTipoRotulo() {
+        return RECEBER_CUIDADO.equals(tipo)
+                ? "Quero que alguém cuide de mim"
+                : "Quero cuidar de alguém";
     }
 }

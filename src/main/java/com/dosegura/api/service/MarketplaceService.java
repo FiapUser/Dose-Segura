@@ -61,11 +61,9 @@ public class MarketplaceService {
             fornecedor.setTelefone(details.getTelefone());
             fornecedor.setAvaliacao(details.getAvaliacao());
             fornecedor.setDescricao(details.getDescricao());
-            // A URL do logo só muda pelo upload no Cloudinary: um payload sem o campo
-            // não pode apagar a imagem que já está gravada.
-            if (details.getUrlLogo() != null && !details.getUrlLogo().isBlank()) {
-                fornecedor.setUrlLogo(details.getUrlLogo());
-            }
+            // A imagem NÃO vem do formulário: o formulário ainda carrega a URL antiga
+            // e sobrescreveria o upload recém-enviado. Ela só muda em
+            // POST /dosegura/api/imagens (regra de permissões por tipo de conta).
             return fornecedorRepo.save(fornecedor);
         }).orElseThrow(() -> new RuntimeException("Fornecedor não encontrado"));
     }
@@ -121,10 +119,7 @@ public class MarketplaceService {
             medicamento.setCategoria(details.getCategoria());
             medicamento.setEstoqueDisponivel(details.getEstoqueDisponivel());
             medicamento.setEstoqueFabricante(details.getEstoqueFabricante());
-            // A URL da imagem só muda pelo upload no Cloudinary (regra de permissões).
-            if (details.getUrlImagem() != null && !details.getUrlImagem().isBlank()) {
-                medicamento.setUrlImagem(details.getUrlImagem());
-            }
+            // A imagem do medicamento também só muda pelo upload no Cloudinary.
             medicamento.setPrecoOriginal(details.getPrecoOriginal());
             medicamento.setDescontoPorcentagem(details.getDescontoPorcentagem());
             medicamento.setDescontoSelecionado(details.getDescontoSelecionado());

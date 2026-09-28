@@ -51,16 +51,10 @@ public class VinculoService {
         }
         String tipoNormalizado = normalizarTipo(tipo);
 
-        // Um pedido pendente igual bloqueia o reenvio, para não encher a caixa do outro.
+        // Um pedido pendente entre as duas contas bloqueia o reenvio, para não
+        // encher a área de notificações do outro.
         if (repo.findBySolicitanteIdAndDestinatarioIdAndStatus(
                 solicitanteId, destinatario.getId(), SolicitacaoVinculoModel.STATUS_PENDENTE).isPresent()) {
-            throw new DadosInvalidosException("Já existe um pedido pendente para essa conta.");
-        }
-
-        // A recusa anterior não impede nova tentativa depois de um tempo.
-        List<SolicitacaoVinculoModel> anteriores = repo.findBySolicitanteIdAndDestinatarioId(
-                solicitanteId, destinatario.getId());
-        if (anteriores.stream().anyMatch(SolicitacaoVinculoModel::isPendente)) {
             throw new DadosInvalidosException("Já existe um pedido pendente para essa conta.");
         }
 
@@ -95,8 +89,7 @@ public class VinculoService {
         solicitacao.setRespondidoEm(LocalDateTime.now());
         SolicitacaoVinculoModel salva = repo.save(solicitacao);
 
-        notificacoes.descartarPorAcao(solicitacao.getDestinatario().getId(),
-                NotificacaoService.ACAO_VINCULO, solicitacaoId);
+        notificacoes.encerrarAlertasDeVinculo(solicitacao.getDestinatario().getId(), solicitacaoId);
         return salva;
     }
 
@@ -106,8 +99,7 @@ public class VinculoService {
         solicitacao.setStatus(SolicitacaoVinculoModel.STATUS_RECUSADA);
         solicitacao.setRespondidoEm(LocalDateTime.now());
         SolicitacaoVinculoModel salva = repo.save(solicitacao);
-        notificacoes.descartarPorAcao(solicitacao.getDestinatario().getId(),
-                NotificacaoService.ACAO_VINCULO, solicitacaoId);
+        notificacoes.encerrarAlertasDeVinculo(solicitacao.getDestinatario().getId(), solicitacaoId);
         return salva;
     }
 
@@ -147,13 +139,16 @@ public class VinculoService {
         return solicitacao;
     }
 
+    /** Aceita os nomes antigos para não quebrar pedidos já enviados. */
     private String normalizarTipo(String tipo) {
         if (tipo == null || tipo.isBlank()) {
-            return SolicitacaoVinculoModel.TIPO_CUIDADO;
+            return SolicitacaoVinculoModel.PRESTAR_CUIDADO;
         }
-        if (SolicitacaoVinculoModel.TIPO_RESPONSAVEL.equalsIgnoreCase(tipo.trim())) {
-            return SolicitacaoVinculoModel.TIPO_RESPONSAVEL;
-        }
-        return SolicitacaoVinculoModel.TIPO_CUIDADO;
+        String limpo = tipo.trim().toUpperCase();
+        return switch (limpo) {
+            case "RECEBER_CUIDADO", "RESPONSAVEL" -> SolicitacaoVinculoModel.RECEBER_CUIDADO;
+            case "PRESTAR_CUIDADO", "CUIDADO" -> SolicitacaoVinculoModel.PRESTAR_CUIDADO;
+            default -> SolicitacaoVinculoModel.PRESTAR_CUIDADO;
+        };
     }
 }

@@ -155,6 +155,12 @@ Na interface, o envio acontece em **Gestão** (fornecedores, farmácias e
 medicamentos) e em **Minha rede → foto de perfil**; contas sem permissão veem
 exatamente o que podem ou não podem enviar.
 
+A URL da imagem **nunca** vem do formulário de edição: ela só muda pelo endpoint
+de upload. Antes, salvar o registro reenviava a URL antiga e apagava a imagem
+recém-enviada — por isso "trocar a imagem do fornecedor" não funcionava. Ao criar
+um registro, o modal permanece aberto para o upload imediato (o envio exige o id,
+que só existe depois de salvar).
+
 ---
 
 ## 4. Render + Aiven (MySQL)
@@ -231,7 +237,7 @@ Base: `/dosegura/api`
 | Carrinho       | `/carrinho/paciente/{id}` (obter, adicionar, remover, finalizar)       |
 | Agenda         | `/agenda/paciente/{id}`, `/agenda/{id}/concluir`                        |
 | Estoque/Painel | `/dashboard-estoque/estoque`, `/dashboard-estoque/painel/paciente/{id}` |
-| Notificações   | `/notificacoes/minhas`, `/notificacoes/{id}/ler` (em memória)        |
+| Notificações   | `/notificacoes/minhas`, `/notificacoes/paciente/{id}/historico`, `/notificacoes/{id}/ler` |
 | Vínculos       | `/vinculos/solicitar`, `/vinculos/recebidos`, `/vinculos/{id}/aceitar`   |
 | Relatórios     | `/relatorios/configurar`, `/relatorios/familiar/{id}`                   |
 | Imagens        | `/imagens`, `/imagens/config`, `/imagens/{tipo}/{id}`                  |
@@ -245,7 +251,13 @@ Autenticação por JWT (`Authorization: Bearer ...`); erros no formato
 Não existe mais vínculo imediato nem senha de dependente:
 
 1. quem cuida (ou quer um responsável) envia `POST /vinculos/solicitar` com o
-   e-mail da outra conta e o tipo (`CUIDADO` ou `RESPONSAVEL`);
+   e-mail da outra conta e o tipo:
+
+   | tipo | quem é quem |
+   |------|-------------|
+   | `PRESTAR_CUIDADO` | eu quero **cuidar de alguém** (eu sou o cuidador) |
+   | `RECEBER_CUIDADO` | eu quero **que alguém cuide de mim** (eu sou o paciente) |
+
 2. a conta destinatária recebe o alerta na **área de notificações** e decide em
    **"Sim, vincular"** ou **"Não quero"**;
 3. só no aceite o cuidador é gravado em `paciente.cuidador`.
@@ -257,10 +269,12 @@ enviou cancela. Os endpoints antigos `PUT /paciente/{id}/vincular-cuidador/{id}`
 
 ### Notificações
 
-Os alertas ficam **em memória**: máximo de 20 por conta, expiram em 24 horas e
-somem quando a aplicação reinicia. Não há mais histórico salvo no banco (a tabela
-`notificacoes_sistema` deixou de ser usada). A aba "Histórico" foi removida da
-interface.
+Os alertas **são gravados** em `notificacoes_sistema`, então existe histórico: a
+tela tem as abas **Ativas** (não lidas) e **Histórico** (já lidas). O agendador
+percorre a agenda a cada minuto (medicamento na hora, compromisso amanhã) e o
+alerta de estoque baixo sai uma vez por dia às 08:00, sem repetir o mesmo
+compromisso dentro da mesma hora. Pedidos de vínculo respondidos continuam no
+histórico. Nenhum título usa emoji: o ícone vem do tema (lucide).
 
 ---
 
@@ -274,8 +288,8 @@ farmácia:
 - cards de produto com fita de desconto, selos, preço riscado, parcelas e
   botão de compra; cartões de farmácia e fornecedor com foto, avaliação e prazo;
 - ícones de saúde/farmácia (cápsula, cruz, estetoscópio, seringa, coração);
-- marca (`EscudoDoseSegura`): escudo com relógio e selo de confirmação verde, no
-  cabeçalho, no rodapé e no favicon;
+- marca: usa o arquivo original `logo-dose-segura.png` (escudo com relógio e selo
+  de confirmação verde) no cabeçalho, no rodapé e no favicon;
 - acessibilidade: corpo de texto grande, alvos de toque ≥ 44 px, foco visível,
   contraste alto e ícones com rótulo textual.
 

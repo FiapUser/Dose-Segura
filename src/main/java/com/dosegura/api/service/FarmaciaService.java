@@ -72,9 +72,7 @@ public class FarmaciaService {
             farmacia.setTelefone(details.getTelefone());
             farmacia.setTaxaEntrega(details.getTaxaEntrega());
             farmacia.setTempoEntregaMinutos(details.getTempoEntregaMinutos());
-            if (details.getUrlImagem() != null && !details.getUrlImagem().isBlank()) {
-                farmacia.setUrlImagem(details.getUrlImagem());
-            }
+            // A imagem da unidade só muda pelo upload no Cloudinary.
             if (details.getFornecedor() != null && details.getFornecedor().getId() != null) {
                 FornecedorModel f = fornecedorRepo.findById(details.getFornecedor().getId())
                         .orElseThrow(() -> new RuntimeException("Fornecedor não encontrado."));
